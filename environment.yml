@@ -1,0 +1,64 @@
+name: bgan
+channels:
+- defaults
+dependencies:
+- openssl=1.0.2l=0
+- pip=9.0.1=py27_1
+- python=2.7.13=0
+- readline=6.2=2
+- setuptools=27.2.0=py27_0
+- sqlite=3.13.0=0
+- tk=8.5.18=0
+- wheel=0.29.0=py27_0
+- zlib=1.2.8=3
+- pip:
+  - appnope==0.1.0
+  - backports-abc==0.5
+  - backports.shutil-get-terminal-size==1.0.0
+  - certifi==2017.4.17
+  - chardet==3.0.4
+  - cycler==0.10.0
+  - decorator==4.1.2
+  - enum34==1.1.6
+  - funcsigs==1.0.2
+  - functools32==3.2.3.post2
+  - idna==2.5
+  - ipdb==0.10.3
+  - ipython==5.4.1
+  - ipython-genutils==0.2.0
+  - jsonschema==2.6.0
+  - jupyter-core==4.3.0
+  - matplotlib==2.0.2
+  - mock==2.0.0
+  - nbformat==4.3.0
+  - numpy==1.13.1
+  - olefile==0.44
+  - pathlib2==2.3.0
+  - pbr==3.1.1
+  - pexpect==4.2.1
+  - pickleshare==0.7.4
+  - pillow==4.2.1
+  - plotly==2.0.12
+  - prompt-toolkit==1.0.14
+  - protobuf==3.3.0
+  - ptyprocess==0.5.2
+  - pygments==2.2.0
+  - pyparsing==2.2.0
+  - python-dateutil==2.6.1
+  - pytz==2017.2
+  - pyzmq==16.0.2
+  - requests==2.18.2
+  - scandir==1.5
+  - scikit-learn==0.19.0
+  - scipy==0.19.1
+  - simplegeneric==0.8.1
+  - singledispatch==3.4.0.3
+  - six==1.10.0
+  - sklearn==0.0
+  - subprocess32==3.2.7
+  - tensorflow==1.0.0
+  - tornado==4.5.1
+  - traitlets==4.3.2
+  - urllib3==1.22
+  - visdom==0.1.5
+  - wcwidth==0.1.7
