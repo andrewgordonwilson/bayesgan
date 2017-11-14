@@ -153,12 +153,16 @@ def b_dcgan(dataset, args):
     else:
         supervised_batches = get_supervised_batches(dataset, args.N, batch_size, range(dataset.num_classes))
 
-    test_image_batches, test_label_batches = get_test_batches(dataset, batch_size)
+    if args.semi_supervised:
+        test_image_batches, test_label_batches = get_test_batches(dataset, batch_size)
 
-    optimizer_dict = {"semi_d": dcgan.d_optim_semi_adam,
-                      "sup_d": dcgan.s_optim_adam,
-                      "adv_d": dcgan.d_optim_adam,
-                      "gen": dcgan.g_optims_adam}
+        optimizer_dict = {"semi_d": dcgan.d_optim_semi_adam,
+                          "sup_d": dcgan.s_optim_adam,
+                          "adv_d": dcgan.d_optim_adam,
+                          "gen": dcgan.g_optims_adam}
+    else:
+        optimizer_dict = {"adv_d": dcgan.d_optim_adam,
+                          "gen": dcgan.g_optims_adam}
 
     base_learning_rate = args.lr # for now we use same learning rate for Ds and Gs
     lr_decay_rate = args.lr_decay
@@ -167,10 +171,14 @@ def b_dcgan(dataset, args):
 
         if train_iter == 5000:
             print "Switching to user-specified optimizer"
-            optimizer_dict = {"semi_d": dcgan.d_optim_semi,
-                              "sup_d": dcgan.s_optim,
-                              "adv_d": dcgan.d_optim,
-                              "gen": dcgan.g_optims}
+            if args.semi_supervised:
+                optimizer_dict = {"semi_d": dcgan.d_optim_semi,
+                                  "sup_d": dcgan.s_optim,
+                                  "adv_d": dcgan.d_optim,
+                                  "gen": dcgan.g_optims}
+            else:
+                optimizer_dict = {"adv_d": dcgan.d_optim,
+                                  "gen": dcgan.g_optims}
 
         learning_rate = base_learning_rate * np.exp(-lr_decay_rate *
                                                     min(1.0, (train_iter*batch_size)/float(dataset_size)))
