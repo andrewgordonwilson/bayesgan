@@ -164,7 +164,7 @@ to train the model on the SVHN dataset. This command will run the method for 750
 You can train the model in semi-supervised setting by running `bayesian_gan_hmc` with `--semi` option. Use `-N` parameter to set the number of labeled examples to train on. For example, use
 ```
 ./bayesian_gan_hmc.py --data_path <data_path> --dataset cifar --numz 1 --num_mcmc 10
---out_dir <results_path> --train_iter 75000 --N 4000 --semi --lr 0.00005
+--out_dir <results_path> --train_iter 75000 --N 4000 --semi --lr 0.005
 ```
 to train the model on CIFAR10 dataset with 4000 labeled examples. This command will train the model for 75000 iterations and store the outputs in `<results_path>` folder.
 
