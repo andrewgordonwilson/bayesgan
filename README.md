@@ -64,7 +64,7 @@ source activate bgan
 
 - `--out_dir`: path to the folder, where the outputs will be stored
 - `--n_save`: samples and weights are saved every `n_save` iterations; default 100
-- `--z_dim`: dimensionalit of `z` vector for generator; default 100
+- `--z_dim`: dimensionality of `z` vector for generator; default 100
 - `--data_path`: path to the data; see [data preparation](#data-preparation) for a detailed
 discussion; this parameter is required
 - `--dataset`: can be `mnist`, `cifar`, `svhn` or `celeb`; default `mnist`
