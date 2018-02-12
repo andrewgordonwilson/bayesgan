@@ -5,9 +5,6 @@ from collections import OrderedDict, defaultdict
 
 from bgan_util import AttributeDict
 
-
-#### Bayesian DCGAN
-
 from dcgan_ops import *
 
 def conv_out_size_same(size, stride):
@@ -17,12 +14,11 @@ def conv_out_size_same(size, stride):
 class BGAN(object):
 
     def __init__(self, x_dim, z_dim, dataset_size, batch_size=64, prior_std=1.0, J=1, M=1, 
-                 num_classes=1, alpha=0.01, lr=0.0002, gen_observed=1000,
+                 num_classes=1, alpha=0.01, lr=0.0002,
                  optimizer='adam', wasserstein=False, ml=False):
 
         self.batch_size = batch_size
         self.dataset_size = dataset_size
-        self.gen_observed = gen_observed
         self.x_dim = x_dim
         self.z_dim = z_dim
         self.optimizer = optimizer.lower()
@@ -148,26 +144,36 @@ class BGAN(object):
             self.generation["d_probs"].append(D_)
             
 
-        all_d_logits = tf.concat(self.generation["d_logits"], 0)
+        d_loss_fakes = []
         if self.wasserstein:
             self.d_loss_fake = -tf.reduce_mean(all_d_logits)
         else:
-            constant_labels = np.zeros((self.batch_size*self.num_gen*self.num_mcmc, self.K+1))
+            constant_labels = np.zeros((self.batch_size, self.K+1))
             constant_labels[:, 0] = 1.0 # class label indicating it came from generator, aka fake
-            self.d_loss_fake = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=all_d_logits,
-                                                                                      labels=tf.constant(constant_labels)))
+            for d_logits_ in self.generation["d_logits"]:
+                d_loss_fakes.append(tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=d_logits_,
+                                                                                           labels=tf.constant(constant_labels))))
 
         t_vars = tf.trainable_variables()
         self.d_vars = [var for var in t_vars if 'd_' in var.name]
 
-        self.d_loss = self.d_loss_real + self.d_loss_fake
-        if not self.ml:
-            self.d_loss += self.disc_prior() + self.disc_noise()
-        if self.K > 1:
-            self.d_loss_semi = self.d_loss_sup + self.d_loss_real + self.d_loss_fake
-            if not self.ml:
-                self.d_loss_semi += self.disc_prior() + self.disc_noise()
+        d_losses, d_losses_semi = [], []
 
+        for d_loss_fake_ in d_loss_fakes:
+            d_loss_ = self.d_loss_real + d_loss_fake_
+            if not self.ml:
+                d_loss_ += self.disc_prior() + self.disc_noise()
+            d_losses.append(tf.reshape(d_loss_, [1]))
+            if self.K > 1:
+                d_loss_semi_ = self.d_loss_sup + self.d_loss_real + d_loss_fake_
+                if not self.ml:
+                    d_loss_semi_ += self.disc_prior() + self.disc_noise()
+                d_losses_semi.append(tf.reshape(d_loss_semi_, [1]))
+
+        self.d_loss = tf.reduce_logsumexp(tf.concat(d_losses, 0))
+        if self.K > 1:
+            self.d_loss_semi = tf.reduce_logsumexp(tf.concat(d_losses_semi, 0))
+        
         self.g_vars = []
         for gi in xrange(self.num_gen):
             for m in xrange(self.num_mcmc):
@@ -238,7 +244,7 @@ class BGAN(object):
                 nn = tf.divide(var, self.prior_std)
                 prior_loss += tf.reduce_mean(tf.multiply(nn, nn))
                 
-        prior_loss /= self.gen_observed
+        prior_loss /= self.dataset_size
 
         return prior_loss
 
@@ -247,7 +253,7 @@ class BGAN(object):
             noise_loss = 0.0
             for name, var in gen_params.iteritems():
                 noise_loss += tf.reduce_sum(var * self.sghmc_noise[name].sample())
-        noise_loss /= self.gen_observed
+        noise_loss /= self.dataset_size
         return noise_loss
 
     def disc_prior(self):
@@ -269,210 +275,5 @@ class BGAN(object):
                 noise_loss += tf.reduce_sum(var * noise_.sample())
         noise_loss /= self.dataset_size
         return noise_loss
-
-
-class BDCGAN(BGAN):
-
-    def __init__(self, x_dim, z_dim, dataset_size, batch_size=64, gf_dim=64, df_dim=64, 
-                 prior_std=1.0, J=1, M=1, num_classes=1, eta=2e-4, 
-                 alpha=0.01, lr=0.0002, optimizer='adam', wasserstein=False, 
-                 ml=False, gen_observed=1000):
-
-        assert len(x_dim) == 3, "invalid image dims"
-        
-        c_dim = x_dim[2]
-        self.is_grayscale = (c_dim == 1)
-        self.optimizer = optimizer.lower()
-        self.dataset_size = dataset_size
-        self.batch_size = batch_size
-        self.gen_observed = gen_observed
-
-        self.x_dim = x_dim
-        self.z_dim = z_dim
-
-        self.gf_dim = gf_dim
-        self.df_dim = df_dim
-        self.c_dim = c_dim
-        self.lr = lr
-
-        self.wasserstein = wasserstein
-        
-        self.d_bn1 = batch_norm(name='d_bn1')
-        self.d_bn2 = batch_norm(name='d_bn2')
-        self.d_bn3 = batch_norm(name='d_bn3')
-
-        self.sd_bn1 = batch_norm(name='sd_bn1')
-        self.sd_bn2 = batch_norm(name='sd_bn2')
-        self.sd_bn3 = batch_norm(name='sd_bn3')
-
-
-        self.g_bn0 = batch_norm(name='g_bn0')
-        self.g_bn1 = batch_norm(name='g_bn1')
-        self.g_bn2 = batch_norm(name='g_bn2')
-        self.g_bn3 = batch_norm(name='g_bn3')
-
-        self.wasserstein = wasserstein
-        
-        # Bayes
-        self.prior_std = prior_std
-        self.num_gen = J
-        self.num_mcmc = M
-        self.eta = eta
-        self.alpha = alpha
-        # ML
-        self.ml = ml
-        if self.ml:
-            assert self.num_gen == 1, "cannot have >1 generator for ml"
-
-        self.output_height = x_dim[0]
-        self.output_width = x_dim[1]
-
-        s_h, s_w = self.output_height, self.output_width
-        s_h2, s_w2 = conv_out_size_same(s_h, 2), conv_out_size_same(s_w, 2)
-        s_h4, s_w4 = conv_out_size_same(s_h2, 2), conv_out_size_same(s_w2, 2)
-        s_h8, s_w8 = conv_out_size_same(s_h4, 2), conv_out_size_same(s_w4, 2)
-        s_h16, s_w16 = conv_out_size_same(s_h8, 2), conv_out_size_same(s_w8, 2)
-        
-        self.gen_params = AttributeDict()
-        self.bgen_params = AttributeDict()
-        self.weight_dims = OrderedDict([("g_h0_lin_W", (self.z_dim, self.gf_dim * 8 * s_h16 * s_w16)),
-                                        ("g_h0_lin_b", (self.gf_dim * 8 * s_h16 * s_w16,)),
-                                        ("g_h1_W", (5, 5, self.gf_dim*4, self.gf_dim*8)),
-                                        ("g_h1_b", (self.gf_dim*4,)),
-                                        ("g_h2_W", (5, 5, self.gf_dim*2, self.gf_dim*4)),
-                                        ("g_h2_b", (self.gf_dim*2,)),
-                                        ("g_h3_W", (5, 5, self.gf_dim*1, self.gf_dim*2)),
-                                        ("g_h3_b", (self.gf_dim*1,)),
-                                        ("g_h4_W", (5, 5, self.c_dim, self.gf_dim*1)),
-                                        ("g_h4_b", (self.c_dim,))])
-
-        self.sghmc_noise = {}
-        self.noise_std = np.sqrt(2 * self.alpha * self.eta)
-        for name, dim in self.weight_dims.iteritems():
-            self.sghmc_noise[name] = tf.contrib.distributions.Normal(mu=0., sigma=self.noise_std*tf.ones(self.weight_dims[name]))
-
-        self.K = num_classes # 1 means unsupervised, label == 0 always reserved for fake
-
-        self.build_bgan_graph()
-
-        if self.K > 1:
-            self.build_test_graph()
-                                             
-                    
-    def discriminator(self, image, K, reuse=False):
-        with tf.variable_scope("discriminator") as scope:
-            if reuse:
-                scope.reuse_variables()
-
-            h0 = lrelu(conv2d(image, self.df_dim, name='d_h0_conv'))
-            h1 = lrelu(self.d_bn1(conv2d(h0,
-                                         self.df_dim * 2,
-                                         name='d_h1_conv')))
-            h2 = lrelu(self.d_bn2(conv2d(h1,
-                                         self.df_dim * 4,
-                                         name='d_h2_conv')))
-            h3 = lrelu(self.d_bn3(conv2d(h2,
-                                         self.df_dim * 8,
-                                         name='d_h3_conv')))
-            h4 = linear(tf.reshape(h3, [self.batch_size, -1]), K, 'd_h3_lin')
-            return tf.nn.softmax(h4), h4
-        
-
-    def sup_discriminator(self, image, K, reuse=False):
-        with tf.variable_scope("sup_discriminator") as scope:
-            if reuse:
-                scope.reuse_variables()
-
-            h0 = lrelu(conv2d(image, self.df_dim, name='sup_h0_conv'))
-            h1 = lrelu(self.sd_bn1(conv2d(h0,
-                                         self.df_dim * 2,
-                                         name='sup_h1_conv')))
-            h2 = lrelu(self.sd_bn2(conv2d(h1,
-                                         self.df_dim * 4,
-                                         name='sup_h2_conv')))
-            h3 = lrelu(self.sd_bn3(conv2d(h2,
-                                         self.df_dim * 8,
-                                         name='sup_h3_conv')))
-            h4 = linear(tf.reshape(h3, [self.batch_size, -1]), K, 'sup_h3_lin')
-            return tf.nn.softmax(h4), h4
-
-            
-
-    def generator(self, z, gen_params):
-        with tf.variable_scope("generator") as scope:
-            
-            s_h, s_w = self.output_height, self.output_width
-            s_h2, s_w2 = conv_out_size_same(s_h, 2), conv_out_size_same(s_w, 2)
-            s_h4, s_w4 = conv_out_size_same(s_h2, 2), conv_out_size_same(s_w2, 2)
-            s_h8, s_w8 = conv_out_size_same(s_h4, 2), conv_out_size_same(s_w4, 2)
-            s_h16, s_w16 = conv_out_size_same(s_h8, 2), conv_out_size_same(s_w8, 2)
-
-            # project `z` and reshape
-            self.z_, self.h0_w, self.h0_b = linear(z, self.gf_dim * 8 * s_h16 * s_w16, 'g_h0_lin', with_w=True,
-                                                   matrix=gen_params.g_h0_lin_W, bias=gen_params.g_h0_lin_b)
-
-            self.h0 = tf.reshape(self.z_, [-1, s_h16, s_w16, self.gf_dim * 8])
-            h0 = tf.nn.relu(self.g_bn0(self.h0))
-
-            self.h1, self.h1_w, self.h1_b = deconv2d(h0,
-                                                     [self.batch_size, s_h8, s_w8, self.gf_dim * 4], name='g_h1', with_w=True,
-                                                     w=gen_params.g_h1_W, biases=gen_params.g_h1_b)
-            h1 = tf.nn.relu(self.g_bn1(self.h1))
-
-            h2, self.h2_w, self.h2_b = deconv2d(h1,
-                                                [self.batch_size, s_h4, s_w4, self.gf_dim * 2], name='g_h2', with_w=True,
-                                                w=gen_params.g_h2_W, biases=gen_params.g_h2_b)
-            h2 = tf.nn.relu(self.g_bn2(h2))
-
-            h3, self.h3_w, self.h3_b = deconv2d(h2,
-                                                [self.batch_size, s_h2, s_w2, self.gf_dim * 1], name='g_h3', with_w=True,
-                                                w=gen_params.g_h3_W, biases=gen_params.g_h3_b)
-            h3 = tf.nn.relu(self.g_bn3(h3))
-
-            h4, self.h4_w, self.h4_b = deconv2d(h3,
-                                                [self.batch_size, s_h, s_w, self.c_dim], name='g_h4', with_w=True,
-                                                w=gen_params.g_h4_W, biases=gen_params.g_h4_b)
-
-            return tf.nn.tanh(h4)
-        
-
-    def sampler(self, z, gen_params):
-        with tf.variable_scope("generator") as scope:
-            scope.reuse_variables()
-
-            s_h, s_w = self.output_height, self.output_width
-            s_h2, s_w2 = conv_out_size_same(s_h, 2), conv_out_size_same(s_w, 2)
-            s_h4, s_w4 = conv_out_size_same(s_h2, 2), conv_out_size_same(s_w2, 2)
-            s_h8, s_w8 = conv_out_size_same(s_h4, 2), conv_out_size_same(s_w4, 2)
-            s_h16, s_w16 = conv_out_size_same(s_h8, 2), conv_out_size_same(s_w8, 2)
-
-            # project `z` and reshape
-            z_ = linear(z, self.gf_dim * 8 * s_h16 * s_w16, 'g_h0_lin',
-                        matrix=gen_params.g_h0_lin_W, bias=gen_params.g_h0_lin_b)
-
-            h0 = tf.reshape(z_, [-1, s_h16, s_w16, self.gf_dim * 8])
-            h0 = tf.nn.relu(self.g_bn0(h0, train=False))
-
-            h1 = deconv2d(h0,
-                          [self.batch_size, s_h8, s_w8, self.gf_dim * 4], name='g_h1',
-                          w=gen_params.g_h1_W, biases=gen_params.g_h1_b)
-            
-            h1 = tf.nn.relu(self.g_bn1(h1, train=False))
-
-            h2 = deconv2d(h1,
-                          [self.batch_size, s_h4, s_w4, self.gf_dim * 2], name='g_h2',
-                          w=gen_params.g_h2_W, biases=gen_params.g_h2_b)
-            h2 = tf.nn.relu(self.g_bn2(h2, train=False))
-
-            h3 = deconv2d(h2,
-                          [self.batch_size, s_h2, s_w2, self.gf_dim * 1], name='g_h3',
-                          w=gen_params.g_h3_W, biases=gen_params.g_h3_b)
-            h3 = tf.nn.relu(self.g_bn3(h3, train=False))
-
-            h4 = deconv2d(h3,
-                          [self.batch_size, s_h, s_w, self.c_dim], name='g_h4',
-                          w=gen_params.g_h4_W, biases=gen_params.g_h4_b)
-
-            return tf.nn.tanh(h4)
 
 

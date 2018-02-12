@@ -23,7 +23,7 @@ class AttributeDict(dict):
         return hash(tuple(sorted(self.items())))
         
         
-def print_images(sampled_images, label, index, directory):
+def print_images(sampled_images, label, index, directory, save_all_samples=False):
     import matplotlib as mpl
     mpl.use('Agg') # for server side
     import matplotlib.pyplot as plt
@@ -63,7 +63,7 @@ def print_images(sampled_images, label, index, directory):
     fig.savefig(os.path.join(directory, "%s_%i.png" % (label, index)), bbox_inches='tight')
     plt.close("all")
 
-    if "raw" not in label.lower():
+    if "raw" not in label.lower() and save_all_samples:
         np.savez_compressed(os.path.join(directory, "samples_%s_%i.npz" % (label, index)),
                             samples=sampled_images)
                             
@@ -171,7 +171,7 @@ class CelebDataset():
         
     def __init__(self, path):
         self.path = path
-        self.x_dim = [50, 50, 3]
+        self.x_dim = [32, 32, 3]
 
         with open(os.path.join(path, "Anno/list_attr_celeba.txt")) as af:
             lines = [line.strip() for line in af.readlines()]
@@ -183,12 +183,12 @@ class CelebDataset():
             info = [token for token in bb_line.split(" ") if len(token)]
             self.attr_dict[info[0]] = [int(tk) for tk in info[1:]]
 
-        self.salient_features = [9, 15, 20, 26, 39] # blond, glasses, male, pale, young
+        self.salient_features = [9, 15, 20, 39] # blond, glasses, male, young
         
         self.num_classes = 2**len(self.salient_features)
 
-        self.num_train = 100000
-        self.num_test = 20000
+        self.num_train = 75000
+        self.num_test = 10000
         self.dataset_size = self.num_train
 
 
@@ -250,7 +250,7 @@ class CelebDataset():
         return X_batch[:batch_size], y_batch[:batch_size]
 
     def get_test_set(self):
-        return self.test_batch(1024*8)
+        return self.test_batch(1024*4)
 
 
 class SVHN():

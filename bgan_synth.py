@@ -80,7 +80,7 @@ def analyze_div(X_real, X_sample):
 
 
 def bgan_synth(synth_dataset, z_dim, batch_size=64, numz=5, num_iter=1000, 
-               wasserstein=False, rpath="synth_results", gen_observed=10,
+               wasserstein=False, rpath="synth_results",
                base_learning_rate=1e-2, lr_decay=3., save_weights=False):
 
     bgan = BGAN([synth_dataset.x_dim], z_dim,
@@ -90,7 +90,6 @@ def bgan_synth(synth_dataset, z_dim, batch_size=64, numz=5, num_iter=1000,
                 J=numz, M=1, ml=(numz == 1),
                 num_classes=1,
                 wasserstein=wasserstein, # unsupervised only
-                gen_observed=gen_observed
                 )
     print "Starting session"
     session = get_session()
@@ -213,10 +212,6 @@ if __name__ == "__main__":
                         type=int,
                         default=1,
                         help='no of z samples')
-    parser.add_argument('--gen_observed',
-                        type=int,
-                        default=1000,
-                        help='number of data "observed" by generator')
     parser.add_argument('--wasserstein',
                         action="store_true",
                         help='use wasserstein GAN')
@@ -252,8 +247,7 @@ if __name__ == "__main__":
 
     results = bgan_synth(synth_d, args.z_dim, num_iter=args.train_iter, 
                          numz=args.numz, wasserstein=args.wasserstein, 
-                         gen_observed=args.gen_observed, rpath=results_path,
-                         save_weights=args.save_weights)
+                         rpath=results_path, save_weights=args.save_weights)
 
     np.savez(os.path.join(results_path, "run_%s_%s.npz" % ("wasserstein" if args.wasserstein else "regular",
                                                            "ml" if args.numz == 1 else "bayes")),

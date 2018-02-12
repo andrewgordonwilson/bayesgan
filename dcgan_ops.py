@@ -45,6 +45,13 @@ class batch_norm(object):
                                             is_training=train,
                                             scope=self.name)
 
+def huber_loss(labels, predictions, delta=1.0):
+    residual = tf.abs(predictions - labels)
+    condition = tf.less(residual, delta)
+    small_res = 0.5 * tf.square(residual)
+    large_res = delta * residual - 0.5 * tf.square(delta)
+    return tf.where(condition, small_res, large_res)
+
 
 def conv_cond_concat(x, y):
     """Concatenate conditioning vector on feature map axis."""
@@ -56,21 +63,34 @@ def conv_cond_concat(x, y):
 
 def conv2d(input_, output_dim,
            k_h=5, k_w=5, d_h=2, d_w=2, stddev=0.02,
-           name="conv2d"):
+           name="conv2d", w=None, biases=None):
     with tf.variable_scope(name):
-        w = tf.get_variable('w', [k_h, k_w, input_.get_shape()[-1], output_dim],
-                            initializer=tf.truncated_normal_initializer(stddev=stddev))
-        conv = tf.nn.conv2d(
-            input_, w, strides=[
-                1, d_h, d_w, 1], padding='SAME')
+        if w is None:
+            w = tf.get_variable('w', [k_h, k_w, input_.get_shape()[-1], output_dim],
+                                initializer=tf.truncated_normal_initializer(stddev=stddev))
 
-        biases = tf.get_variable(
-            'biases',
-            [output_dim],
-            initializer=tf.constant_initializer(0.0))
+        conv = tf.nn.conv2d(input_, w, strides=[1, d_h, d_w, 1], padding='SAME')
+
+        if biases is None:
+            biases = tf.get_variable(
+                'biases',
+                [output_dim],
+                initializer=tf.constant_initializer(0.0))
+            
         conv = tf.reshape(tf.nn.bias_add(conv, biases), conv.get_shape())
 
         return conv
+
+def wn_conv2d(x, num_output_filters, filter_size, stride,
+              V, g, b, pad="SAME", name="wn_conv2d"):
+
+    with tf.variable_scope(name):
+        #W = tf.reshape(g, [1,1,1,num_output_filters])*tf.nn.l2_normalize(V,[0,1,2])
+        W = V
+        conv = tf.nn.bias_add(tf.nn.conv2d(x, W, strides=[1]+stride+[1], padding=pad), b)
+        out = lrelu(conv)
+        return out
+
 
 
 def deconv2d(input_, output_shape,
@@ -82,14 +102,8 @@ def deconv2d(input_, output_shape,
             w = tf.get_variable('w', [k_h, k_w, output_shape[-1], input_.get_shape()[-1]],
                                 initializer=tf.random_normal_initializer(stddev=stddev))
 
-        try:
-            deconv = tf.nn.conv2d_transpose(input_, w, output_shape=output_shape,
-                                            strides=[1, d_h, d_w, 1])
-
-        # Support for verisons of TensorFlow before 0.7.0
-        except AttributeError:
-            deconv = tf.nn.deconv2d(input_, w, output_shape=output_shape,
-                                    strides=[1, d_h, d_w, 1])
+        deconv = tf.nn.conv2d_transpose(input_, w, output_shape=output_shape,
+                                        strides=[1, d_h, d_w, 1])
 
         if biases is None:
             biases = tf.get_variable('biases',

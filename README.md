@@ -30,7 +30,8 @@ The bibliographic information for the paper is
 In the Bayesian GAN we propose conditional posteriors for the generator and discriminator weights, and marginalize these posteriors through stochastic gradient Hamiltonian Monte Carlo.  Key properties of the Bayesian approach to GANs include (1) accurate predictions on semi-supervised learning problems; (2) minimal intervention for good performance; (3) a probabilistic formulation for inference in response to adversarial feedback; (4) avoidance of mode collapse; and (5) a representation of multiple complementary generative and discriminative models for data, forming a probabilistic ensemble. 
 
 <p align="center">
-    <img src="https://user-images.githubusercontent.com/14368801/29735637-64f511ae-89c8-11e7-97fa-0f095242c7d5.png" width="500"/></p>
+    <img src="img/posterior.png" width="500"/>
+</p>
     
 We illustrate a multimodal posterior over the parameters of the generator.  Each setting of these parameters corresponds to a different generative hypothesis for the data.  We show here samples generated for two different settings of this weight vector, corresponding to different writing styles.  The Bayesian GAN retains this whole distribution over parameters.  By contrast, a standard GAN represents this whole distribution with a point estimate (analogous to a single maximum likelihood solution), missing potentially compelling explanations for the data.  
 
@@ -57,34 +58,6 @@ then load the environment using
 ```
 source activate bgan
 ```
-
-## Training options
-
-`bayesian_gan_hmc.py` has the following training options. 
-
-- `--out_dir`: path to the folder, where the outputs will be stored
-- `--n_save`: samples and weights are saved every `n_save` iterations; default 100
-- `--z_dim`: dimensionalit of `z` vector for generator; default 100
-- `--data_path`: path to the data; see [data preparation](#data-preparation) for a detailed
-discussion; this parameter is required
-- `--dataset`: can be `mnist`, `cifar`, `svhn` or `celeb`; default `mnist`
-- `--gen_observed`: number of data "observed" by the generator; this affects the
-scaling of the noise variance and prior; default 1000
-- `--batch_size`: batch size for training; default 64
-- `--prior_std`: std of the prior distribution over the weights; default 1
-- `--numz`: same as J in the paper; number of samples of `z` to integrate it out; default 1
-- `--num_mcmc`: same as M in the paper; number of MCMC NN weight samples per z; default 1
-- `--lr`: learning rate used by the Adam optimizer; default 0.0002
-- `--optimizer`: optimization method to be used: `adam` (tf.train.AdamOptimizer) or `sgd` (tf.train.MomentumOptimizer); default `adam`
-- `--semi_supervised`: do semi-supervised learning
-- `--N`: number of labeled samples for semi-supervised learning
-- `--train_iter`: number of training iterations; default 50000
-- `--save_samples`: save generated samples during training
-- `--save_weights`: save weights during training
-- `--random_seed`: random seed; note that setting this seed does not lead to 100% reproducible
-results if GPU is used
-
-You can also run WGANs with `--wasserstein` or train an ensemble of `<num_dcgans>` DCGANs with `--ml_ensemble <num_dcgans>`. In particular you can train a DCGAN with `--ml_ensemble 1`.
 
 ## Usage
 
@@ -113,18 +86,20 @@ Once you run the above two commands you will see the output of each 100th iterat
 So, for example, the Bayesian GAN's output at the 900th iteration will look like:
 
 <p align="center">
-  <img src="pca_distribution_10_900.png" width="350"/>
+  <img src="img/pca_distribution_10_900.png" width="350"/>
 </p>
 
 In contrast, the output of the standard GAN (corresponding to numz=1, which forces ML estimation) will look like:
 
 <p align="center">
-  <img src="pca_distribution_1_900.png" width="350"/>
+  <img src="img/pca_distribution_1_900.png" width="350"/>
 </p>
 
 indicating clearly the tendency of mode collapse in the standard GAN which, for this synthetic example, is completely avoided by the Bayesian GAN.
 
 To explore the sythetic experiment further, and to generate the Jensen-Shannon divergence plots, you can check out the notebook `synth.ipynb`.
+
+## Unsupervised and Semi-Supervised Learning on benchmark datasets
 
 ### MNIST, CIFAR10, CelebA, SVHN
 
@@ -147,39 +122,65 @@ to the folder containing `celebA`. When training the model, you will need to use
 
 #### Unsupervised training
 
-You can train the model in unsupervised way by running the `bayesian_gan_hmc` script without `--semi` parameter.
+You can run unsupervised learning by running the `bayesian_gan_hmc` script without `--semi` parameter.
 For example, use
 ```
-./bayesian_gan_hmc.py --data_path <data_path> --dataset svhn --numz 1 --num_mcmc 10 --out_dir 
+./run_bgan.py --data_path <data_path> --dataset svhn --numz 10 --num_mcmc 2 --out_dir 
 <results_path> --train_iter 75000 --save_samples --n_save 100
 ```
 to train the model on the SVHN dataset. This command will run the method for 75000 iterations and save samples every 100 iterations. Here `<results_path>` must lead to the directory where the results will be stored. See [data preparation](#data-preparation) section for an explanation of how to set `<data_path>`. See [training options section](#training-options) for a description of other training options.
 
 <p align="center">
-    <img src="https://user-images.githubusercontent.com/14368801/29735908-9fb85786-89ca-11e7-9c26-e690d1eb656d.png" width=250>&nbsp;&nbsp;&nbsp;&nbsp; <img src="https://user-images.githubusercontent.com/14368801/29735910-9fca5210-89ca-11e7-8dfa-99a3b757e8d8.png" width=250> &nbsp;&nbsp;&nbsp;&nbsp; <img src="https://user-images.githubusercontent.com/14368801/29735909-9fc61376-89ca-11e7-8836-27ac045c7f82.png" width=250> 
+    <img src="img/svhn_1.png" width=250>&nbsp;&nbsp;&nbsp;&nbsp; 
+    <img src="img/svhn_2.png" width=250> &nbsp;&nbsp;&nbsp;&nbsp; 
+    <img src="img/svhn_3.png" width=250> 
 </p>
 
 #### Semi-supervised training
 
+To run the semi-supervised experiments you can use the `run_bgan_semi.py` script, which offers many options including the following:
+
+- `--out_dir`: path to the folder, where the outputs will be stored
+- `--n_save`: samples and weights are saved every `n_save` iterations; default 100
+- `--z_dim`: dimensionalit of `z` vector for generator; default 100
+- `--data_path`: path to the data; see [data preparation](#data-preparation) for a detailed
+discussion; this parameter is required
+- `--dataset`: can be `mnist`, `cifar`, `svhn` or `celeb`; default `mnist`
+- `--batch_size`: batch size for training; default 64
+- `--prior_std`: std of the prior distribution over the weights; default 1
+- `--num_gen`: same as J in the paper; number of samples of `z` to integrate it out for generators; default 1
+- `--num_disc`: same as J_D in the paper; number of samples of `z` to integrate it out for discriminators; default 1
+- `--num_mcmc`: same as M in the paper; number of MCMC NN weight samples per z; default 1
+- `--lr`: learning rate used by the Adam optimizer; default 0.0002
+- `--optimizer`: optimization method to be used: `adam` (tf.train.AdamOptimizer) or `sgd` (tf.train.MomentumOptimizer); default `adam`
+- `--N`: number of labeled samples for semi-supervised learning
+- `--train_iter`: number of training iterations; default 50000
+- `--save_samples`: save generated samples during training
+- `--save_weights`: save weights during training
+- `--random_seed`: random seed; note that setting this seed does not lead to 100% reproducible
+results if GPU is used
+
+You can also run WGANs with `--wasserstein` or train an ensemble of `<num_dcgans>` DCGANs with `--ml_ensemble <num_dcgans>`. In particular you can train a DCGAN with `--ml`.
+
 You can train the model in semi-supervised setting by running `bayesian_gan_hmc` with `--semi` option. Use `-N` parameter to set the number of labeled examples to train on. For example, use
 ```
-./bayesian_gan_hmc.py --data_path <data_path> --dataset cifar --numz 1 --num_mcmc 10
---out_dir <results_path> --train_iter 75000 --N 4000 --semi --lr 0.005
+./run_bgan_semi.py --data_path <data_path> --dataset cifar --num_gen 10 --num_mcmc 2
+--out_dir <results_path> --train_iter 100000 --N 4000 --lr 0.0005
 ```
-to train the model on CIFAR10 dataset with 4000 labeled examples. This command will train the model for 75000 iterations and store the outputs in `<results_path>` folder.
+to train the model on CIFAR10 dataset with 4000 labeled examples. This command will train the model for 100000 iterations and store the outputs in `<results_path>` folder.
 
 <p align="center">
-    <img src="https://user-images.githubusercontent.com/14368801/30291401-c20e4a46-9700-11e7-8271-2167341571fe.png" width="700">
+    <img src="img/acc_vs_time_cifar.png" width="700">
 </p>
 
-To train the model on MNIST with 200 labeled examples you can use the following command.
+To train the model on MNIST with 100 labeled examples you can use the following command.
 ```
-./bayesian_gan_hmc.py --data_path <data_path>/ --dataset mnist --numz 5 --num_mcmc 5
---out_dir <results_path> --train_iter 30000 -N 200 --semi --lr 0.001
+./bayesian_gan_hmc.py --data_path <data_path>/ --dataset mnist --num_gen 10 --num_mcmc 2
+--out_dir <results_path> --train_iter 100000 -N 100 --semi --lr 0.0005
 ```
 
 <p align="center">
-    <img src="https://user-images.githubusercontent.com/14368801/30251179-832f3cbe-9628-11e7-8699-68cff173dd59.png"
+    <img src="img/acc_vs_time_mnist.png"
 width="700">
 </p>
 
@@ -239,11 +240,10 @@ if args.dataset == "digits":
 
 After this preparation is done, we can train the model with, for example,
 ```
-./bayesian_gan_hmc.py --data_path <any_path> --dataset digits --numz 1 --num_mcmc 10 
---out_dir <results path> --train_iter 5000 --save_samples
+./run_bgan_semi.py --data_path <any_path> --dataset digits --num_gen 10 --num_mcmc 2 
+--out_dir <results path> --train_iter 100000 --save_samples
 ```
 
 ### Acknowledgements
 
-We thank Pavel Izmailov for help with stress testing this code and creating the tutorial.
-
+We thank Pavel Izmailov and Ben Athiwaratkun for help with stress testing this code and creating the tutorial.
