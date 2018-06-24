@@ -3,7 +3,7 @@ Bayesian Generative Adversarial Networks in Tensorflow
 
 This repository contains the Tensorflow implementation of the [Bayesian GAN](https://arxiv.org/abs/1705.09558) by Yunus Saatchi and Andrew Gordon Wilson.  This paper appears at NIPS 2017.
 
-Please cite this work if you find it useful in your research. The bibliographic information for the paper is
+Please cite [our paper](https://arxiv.org/abs/1705.09558) if you find this code useful in your research. The bibliographic information for the paper is
 ```bibtex
 @inproceedings{saatciwilson,
   title={Bayesian gan},
